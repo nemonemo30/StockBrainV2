@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stock Brain — 現行処理ロジック</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07090f;
+            --ink: #e8edf8;
+            --mute: #8b95b0;
+            --line: #2a3350;
+            --hi: #9db0ff;
+            --now: #5eead4;
+            --later: #7dd3fc;
+            --warn: #fbbf24;
+            --bad: #fb7185;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+        body { font-family: "Noto Sans JP", sans-serif; }
+
+        .deck {
+            height: 100%;
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+        }
+
+        nav {
+            border-right: 1px solid var(--line);
+            padding: 28px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        nav .brand {
+            font-family: Syne, sans-serif;
+            letter-spacing: .16em;
+            font-size: 12px;
+            color: var(--hi);
+            margin-bottom: 8px;
+        }
+
+        nav .doclink {
+            display: block;
+            margin-bottom: 22px;
+            font-size: 11px;
+            color: var(--mute);
+            text-decoration: none;
+        }
+
+        nav .doclink:hover { color: var(--ink); }
+
+        nav button {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: var(--mute);
+            text-align: left;
+            font: inherit;
+            font-size: 12px;
+            padding: 8px 10px;
+            cursor: pointer;
+            border-left: 2px solid transparent;
+        }
+
+        nav button[aria-current="true"] {
+            color: var(--ink);
+            border-left-color: var(--hi);
+            background: #12162a;
+        }
+
+        main { position: relative; overflow: hidden; }
+
+        .slide {
+            display: none;
+            height: 100%;
+            padding: 48px 56px 72px;
+            overflow: auto;
+        }
+
+        .slide.on { display: block; }
+
+        h1 {
+            font-family: Syne, sans-serif;
+            font-size: clamp(32px, 4vw, 54px);
+            letter-spacing: .04em;
+            margin: 0 0 12px;
+            line-height: 1.15;
+        }
+
+        h2 {
+            font-family: Syne, sans-serif;
+            font-size: 28px;
+            margin: 0 0 20px;
+        }
+
+        .lead { color: var(--mute); font-size: 16px; max-width: 42em; line-height: 1.8; }
+        .kicker { font-family: "IBM Plex Mono", monospace; color: var(--hi); font-size: 12px; letter-spacing: .18em; margin-bottom: 14px; }
+        .hint { margin-top: 22px; color: var(--mute); font-size: 13px; line-height: 1.7; }
+        .file { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--hi); }
+
+        .row3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 28px;
+        }
+
+        .pane {
+            border: 1px solid var(--line);
+            padding: 20px;
+        }
+
+        .pane b { display: block; font-size: 12px; letter-spacing: .12em; margin-bottom: 10px; color: var(--mute); }
+        .pane p { margin: 0; line-height: 1.7; font-size: 14px; }
+        .pane.trade { border-color: #245e57; }
+        .pane.mark { border-color: #2a3350; }
+
+        .flow { display: grid; gap: 8px; margin-top: 8px; }
+        .step {
+            display: grid;
+            grid-template-columns: 88px minmax(0, 1fr) 160px;
+            gap: 12px;
+            align-items: center;
+            border: 1px solid var(--line);
+            padding: 12px 14px;
+        }
+
+        .step .id { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--hi); }
+        .step .who { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--mute); text-align: right; }
+        .step.branch { border-color: var(--warn); }
+        .step.skip { border-color: #5b3340; }
+        .step.end { border-color: #245e57; }
+
+        .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .rules { margin: 0; padding-left: 18px; color: var(--mute); font-size: 14px; line-height: 1.8; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border-bottom: 1px solid var(--line); padding: 11px 10px; text-align: left; }
+        th { color: var(--mute); font-weight: 500; font-size: 11px; letter-spacing: .1em; }
+
+        .gate {
+            display: grid;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .gate div {
+            border: 1px solid var(--line);
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+
+        .gate .ng { border-color: #5b3340; color: #fecaca; }
+        .gate .ok { border-color: #245e57; }
+
+        .foot {
+            position: absolute;
+            left: 56px;
+            right: 56px;
+            bottom: 22px;
+            display: flex;
+            justify-content: space-between;
+            color: var(--mute);
+            font-family: "IBM Plex Mono", monospace;
+            font-size: 11px;
+        }
+
+        @media (max-width: 860px) {
+            .deck { grid-template-columns: 1fr; }
+            nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
+            .row3, .split, .step { grid-template-columns: 1fr; }
+            .step .who { text-align: left; }
+            .slide { padding: 24px 20px 64px; }
+            .foot { left: 20px; right: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="deck">
+    <nav>
+        <div class="brand">STOCK BRAIN</div>
+        <a class="doclink" href="../04_運用/継続運用方針.html">← 方針</a>
+        <a class="doclink" href="./処理フローチャート.html">フローチャート →</a>
+        <button type="button" data-go="0">01 全体</button>
+        <button type="button" data-go="1">02 1日3回</button>
+        <button type="button" data-go="2">03 入口と休場</button>
+        <button type="button" data-go="3">04 9時・12時</button>
+        <button type="button" data-go="4">05 AI判断</button>
+        <button type="button" data-go="5">06 売却の関門</button>
+        <button type="button" data-go="6">07 購入の関門</button>
+        <button type="button" data-go="7">08 16時</button>
+        <button type="button" data-go="8">09 まだ無いもの</button>
+    </nav>
+
+    <main>
+        <section class="slide on" id="s0">
+            <div class="kicker">LOGIC / 2026-09-29</div>
+            <h1>いま動いている処理。</h1>
+            <p class="lead">証券会社へは発注しない。出口と数量は DayTradeEngine が機械的に決める。Gemini は検索して、外れても小さく負けられるセットアップだけを買う。判断の主語は、期待値と生存。</p>
+            <p class="hint">入口は <span class="file">php artisan stockbrain:run {morning|noon|close}</span>。本番は cron-morning.php / cron-noon.php / cron-close.php がこれを叩く。</p>
+        </section>
+
+        <section class="slide" id="s1">
+            <div class="kicker">SCHEDULE</div>
+            <h2>1日は3本。売買は2本。</h2>
+            <div class="row3">
+                <div class="pane trade">
+                    <b>09:00 morning</b>
+                    <p>保有の株価を取る。機械的に損切り・半分利確・トレール・時間切れ。そのあと AI が厳しい新規だけ。</p>
+                </div>
+                <div class="pane trade">
+                    <b>12:00 noon</b>
+                    <p>morning と同じ。昼の時点でも、損切りは問答無用。プラスだから利確、はしない。</p>
+                </div>
+                <div class="pane mark">
+                    <b>16:00 close</b>
+                    <p>株価だけ取って、評価損益を記録する。売りも買いもしない。</p>
+                </div>
+            </div>
+            <p class="hint">カレンダー画面の日次増減は、この16時の記録の前日比。</p>
+        </section>
+
+        <section class="slide" id="s2">
+            <div class="kicker">ENTRY</div>
+            <h2>入口と、動かない日</h2>
+            <div class="flow">
+                <div class="step"><span class="id">01</span><span>session が morning / noon / close か</span><span class="who">RunTradingSession</span></div>
+                <div class="step branch"><span class="id">02</span><span>土日、または JPX 休業日か</span><span class="who">TradingCalendar</span></div>
+                <div class="step skip"><span class="id">SKIP</span><span>はい → 何もしない。job_runs も作らない</span><span class="who">return</span></div>
+                <div class="step"><span class="id">03</span><span>いいえ → 口座を取り、job_runs を running で作る</span><span class="who">Portfolio / JobRun</span></div>
+                <div class="step"><span class="id">04</span><span>保有銘柄の株価を Gemini + 検索で取る。取れた行だけ holdings を更新</span><span class="who">StockPriceFetcher</span></div>
+                <div class="step branch"><span class="id">05</span><span>close なら記録。morning / noon なら売買</span><span class="who">分岐</span></div>
+            </div>
+            <p class="hint">臨時休場（台風など）は見ていない。2028年以降の祝日も未登録。</p>
+        </section>
+
+        <section class="slide" id="s3">
+            <div class="kicker">TRADE</div>
+            <h2>9時と12時の中身</h2>
+            <div class="flow">
+                <div class="step"><span class="id">T1</span><span>株価更新後、損切りを買値へ引き上げ／トレールを武装</span><span class="who">DayTradeEngine::refresh</span></div>
+                <div class="step"><span class="id">T2</span><span>ストップ到達・トレール・+5%半分・5営業日時間切れを先に売る</span><span class="who">DayTradeEngine::exitOrder</span></div>
+                <div class="step"><span class="id">T3</span><span>AI は検索して新規と、根拠切れの time_stop だけ。損切り・利確は返させない</span><span class="who">TradeAdvisor</span></div>
+                <div class="step branch"><span class="id">T4</span><span>--dry-run ならここで止まる。約定しない</span><span class="who">option</span></div>
+                <div class="step"><span class="id">T5</span><span>買い候補の株価を、もう一度取りに行く</span><span class="who">StockPriceFetcher</span></div>
+                <div class="step end"><span class="id">T6</span><span>RR・損切り距離・1銘柄上限・1%リスクで株数を切って買う。買い増しなし</span><span class="who">TradeExecutor::buy</span></div>
+            </div>
+            <p class="hint">売りと買いは同じセッション内で直列。売って増えた現金は、その回の買いに使える。</p>
+        </section>
+
+        <section class="slide" id="s4">
+            <div class="kicker">ADVISOR</div>
+            <h2>AI に渡している規則</h2>
+            <div class="split">
+                <div class="pane">
+                    <b>渡すもの</b>
+                    <p>時刻、現金、総資産、保有数。各銘柄の株数・単価・現在値・損益・損切り・第1/第2利確・経過営業日・thesis。</p>
+                </div>
+                <div class="pane">
+                    <b>返ってくるもの</b>
+                    <p>sells は time_stop だけ。buys は code / shares / stop_price / take_profit_1 / take_profit_2 / reason。comment。</p>
+                </div>
+            </div>
+            <ul class="rules">
+                <li>上昇トレンド、出来高十分、材料悪化なし、市況が極端な下降でない</li>
+                <li>直近で急騰しすぎていない。損切りが近い。第2利確が損失幅の 2倍以上</li>
+                <li>「上がりそう」ではなく、外れても小さく負けられること</li>
+                <li>損切り到達を「反発するかも」で持ち越さない。コードが売る</li>
+                <li>プラスだから利確、もしない。+2% 未満は何もしない</li>
+                <li>5営業日経過して上がっていない／出来高減／根拠切れなら売却。下がっていないから持つ、は禁止</li>
+                <li>既存の買い増しはしない。最大 2 候補、保有は最大 5 銘柄</li>
+            </ul>
+            <p class="hint">ここはプロンプト。ただし損切りと +5% / トレール / 時間切れは、AI の前にコードが実行する。</p>
+        </section>
+
+        <section class="slide" id="s5">
+            <div class="kicker">SELL GATE</div>
+            <h2>売りの関門。判断は通さない。</h2>
+            <div class="gate">
+                <div class="ng">保有していない → 見送</div>
+                <div class="ng">現在株価が無い → 見送</div>
+                <div class="ng">単元未満（全株売却と scale_out 以外）→ 見送</div>
+                <div class="ok">通った → 約定。現金を増やす。残0なら保有削除。scale_out なら scaled_out を立てる。平均単価は据え置き</div>
+            </div>
+            <p class="hint">機械的な損切りは、実現損益がプラスでも stop_loss のままにしないよう、trailing_stop / time_stop / scale_out は補正しない。</p>
+        </section>
+
+        <section class="slide" id="s6">
+            <div class="kicker">BUY GATE</div>
+            <h2>買いの関門。予算は超えない。</h2>
+            <div class="gate">
+                <div class="ng">stocks に無いコード → 見送</div>
+                <div class="ng">内国株式以外 → 見送</div>
+                <div class="ng">株価が取れない → 見送</div>
+                <div class="ng">すでに保有 → 見送（買い増ししない）</div>
+                <div class="ng">保有 5 銘柄以上 → 見送</div>
+                <div class="ng">損切りが買値以上、または距離が 4% 超 → 見送</div>
+                <div class="ng">第2利確が損失幅の 2倍未満 → 見送</div>
+                <div class="ng">1単元が 20万円超、または現金・1%リスクで 0株 → 見送</div>
+                <div class="ok">通った → 株数は min(注文, 1%リスク, 20万円, 現金)。stop / TP / thesis / opened_at を保存</div>
+            </div>
+            <p class="hint">候補の上限は STOCKBRAIN_MAX_BUY_CANDIDATES（既定2）。単元は 100株。リスクは STOCKBRAIN_RISK_PER_TRADE_PCT（既定1%）。</p>
+        </section>
+
+        <section class="slide" id="s7">
+            <div class="kicker">CLOSE</div>
+            <h2>16時は記録だけ。</h2>
+            <div class="flow">
+                <div class="step"><span class="id">C1</span><span>保有の株価を取る</span><span class="who">StockPriceFetcher</span></div>
+                <div class="step end"><span class="id">C2</span><span>現金・簿価・評価額・評価損益・総資産・累計実現損益を、その日1行で upsert</span><span class="who">portfolio_snapshots</span></div>
+            </div>
+            <p class="hint">AI は呼ばない。売りも買いもしない。カレンダーはこの行の前日比を見ている。</p>
+        </section>
+
+        <section class="slide" id="s8">
+            <div class="kicker">GAP</div>
+            <h2>ループに、まだ入っていないもの</h2>
+            <table>
+                <thead>
+                    <tr><th>項目</th><th>いま</th><th>次</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>損切り / 利確</td>
+                        <td>holdings.stop_price / take_profit_1 / take_profit_2。コードが執行</td>
+                        <td>変えない。AI に出口は渡さない</td>
+                    </tr>
+                    <tr>
+                        <td>thesis / opened_at</td>
+                        <td>新規購入から保存。既存は migrate で opened_at と −3% 損切りを埋める</td>
+                        <td>既存の thesis は空のまま。作り直さない</td>
+                    </tr>
+                    <tr>
+                        <td>保有日数</td>
+                        <td>TradingCalendar::tradingDaysSince。5営業日で時間切れ</td>
+                        <td>想定上限 15営業日はトレールに任せる</td>
+                    </tr>
+                    <tr>
+                        <td>買い増し</td>
+                        <td>しない</td>
+                        <td>対象外のまま</td>
+                    </tr>
+                    <tr>
+                        <td>実発注</td>
+                        <td>しない</td>
+                        <td>対象外のまま</td>
+                    </tr>
+                    <tr>
+                        <td>配当・手数料・税金</td>
+                        <td>口座に入れない。買う理由にもしない</td>
+                        <td>対象外のまま</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <div class="foot">
+            <span>← → で移動</span>
+            <span id="pos">1 / 9</span>
+        </div>
+    </main>
+</div>
+<script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const buttons = [...document.querySelectorAll('nav button')];
+    const pos = document.getElementById('pos');
+    let i = 0;
+
+    function go(n) {
+        i = Math.max(0, Math.min(slides.length - 1, n));
+        slides.forEach((s, idx) => s.classList.toggle('on', idx === i));
+        buttons.forEach((b, idx) => b.setAttribute('aria-current', idx === i ? 'true' : 'false'));
+        pos.textContent = (i + 1) + ' / ' + slides.length;
+    }
+
+    buttons.forEach((b) => b.addEventListener('click', () => go(Number(b.dataset.go))));
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'PageDown') go(i + 1);
+        if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(i - 1);
+    });
+</script>
+</body>
+</html>

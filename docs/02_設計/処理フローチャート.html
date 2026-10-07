@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stock Brain — 処理フローチャート</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&family=Syne:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07090f;
+            --ink: #e8edf8;
+            --mute: #8b95b0;
+            --line: #2a3350;
+            --hi: #9db0ff;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: "Noto Sans JP", sans-serif;
+        }
+
+        header {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 36px 20px 8px;
+        }
+
+        header a {
+            color: var(--mute);
+            text-decoration: none;
+            font-size: 12px;
+            margin-right: 16px;
+        }
+
+        header a:hover { color: var(--ink); }
+
+        h1 {
+            font-family: Syne, sans-serif;
+            font-size: 36px;
+            margin: 16px 0 8px;
+        }
+
+        .lead { color: var(--mute); line-height: 1.7; max-width: 40em; }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px 20px;
+            margin: 22px 0 8px;
+            font-size: 12px;
+            color: var(--mute);
+        }
+
+        .legend i {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            margin-right: 6px;
+            vertical-align: -2px;
+            border: 1px solid #fff;
+        }
+
+        .legend .start { background: #1b2a24; border-color: #5eead4; }
+        .legend .proc { background: #14182a; border-color: #9db0ff; }
+        .legend .dec { background: #2a2210; border-color: #fbbf24; }
+        .legend .stop { background: #2a1418; border-color: #fb7185; }
+        .legend .ai { background: #1a1630; border-color: #c4b5fd; }
+
+        .chart {
+            max-width: 920px;
+            margin: 0 auto 48px;
+            padding: 0 12px;
+            overflow-x: auto;
+        }
+
+        .chart h2 {
+            font-family: Syne, sans-serif;
+            font-size: 18px;
+            margin: 28px 8px 10px;
+        }
+
+        svg { display: block; width: 100%; height: auto; }
+
+        .box { fill: #14182a; stroke: #9db0ff; stroke-width: 1.5; }
+        .box-start { fill: #12241f; stroke: #5eead4; stroke-width: 1.5; }
+        .box-stop { fill: #241116; stroke: #fb7185; stroke-width: 1.5; }
+        .box-ai { fill: #1a1630; stroke: #c4b5fd; stroke-width: 1.5; }
+        .dia { fill: #241c0e; stroke: #fbbf24; stroke-width: 1.5; }
+        .ln { stroke: #6b7694; stroke-width: 1.5; fill: none; }
+        .txt { fill: #e8edf8; font-family: "Noto Sans JP", sans-serif; font-size: 14px; text-anchor: middle; }
+        .sub { fill: #8b95b0; font-family: "IBM Plex Mono", monospace; font-size: 11px; text-anchor: middle; }
+        .lab { fill: #fbbf24; font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+    </style>
+</head>
+<body>
+<header>
+    <a href="../04_運用/継続運用方針.html">方針</a>
+    <a href="./現行処理ロジック.html">処理ロジック</a>
+    <h1>処理フローチャート</h1>
+    <p class="lead">上から下へ読む。黄色いひし形が分岐。赤い箱でその回は終わる。紫が Gemini。出口はコードが先。</p>
+    <div class="legend">
+        <span><i class="start"></i>開始／終了</span>
+        <span><i class="proc"></i>処理</span>
+        <span><i class="dec"></i>分岐</span>
+        <span><i class="ai"></i>AI</span>
+        <span><i class="stop"></i>ここで打ち切り</span>
+    </div>
+</header>
+
+<section class="chart">
+    <h2>1. 1回のジョブ全体</h2>
+    <svg viewBox="0 0 840 1180" role="img" aria-label="1回のジョブ全体フロー">
+        <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#6b7694"/>
+            </marker>
+        </defs>
+
+        <rect class="box-start" x="300" y="20" width="240" height="56" rx="28"/>
+        <text class="txt" x="420" y="46">cron が起動</text>
+        <text class="sub" x="420" y="64">9:00 / 12:00 / 16:00</text>
+
+        <line class="ln" x1="420" y1="76" x2="420" y2="108" marker-end="url(#ar)"/>
+
+        <polygon class="dia" points="420,108 530,158 420,208 310,158"/>
+        <text class="txt" x="420" y="154">session は</text>
+        <text class="txt" x="420" y="172">3種のいずれか？</text>
+
+        <line class="ln" x1="310" y1="158" x2="140" y2="158" marker-end="url(#ar)"/>
+        <text class="lab" x="170" y="148">いいえ</text>
+        <rect class="box-stop" x="20" y="130" width="120" height="56" rx="8"/>
+        <text class="txt" x="80" y="164">終了</text>
+
+        <line class="ln" x1="420" y1="208" x2="420" y2="240" marker-end="url(#ar)"/>
+        <text class="lab" x="436" y="232">はい</text>
+
+        <polygon class="dia" points="420,240 540,300 420,360 300,300"/>
+        <text class="txt" x="420" y="292">土日 or</text>
+        <text class="txt" x="420" y="310">東証休場？</text>
+
+        <line class="ln" x1="300" y1="300" x2="140" y2="300" marker-end="url(#ar)"/>
+        <text class="lab" x="168" y="290">はい</text>
+        <rect class="box-stop" x="20" y="258" width="120" height="84" rx="8"/>
+        <text class="txt" x="80" y="292">終了</text>
+        <text class="sub" x="80" y="310">ログも作らない</text>
+
+        <line class="ln" x1="420" y1="360" x2="420" y2="392" marker-end="url(#ar)"/>
+        <text class="lab" x="436" y="384">いいえ</text>
+
+        <rect class="box" x="290" y="392" width="260" height="56" rx="8"/>
+        <text class="txt" x="420" y="418">job_runs を作成</text>
+        <text class="sub" x="420" y="436">status = running</text>
+
+        <line class="ln" x1="420" y1="448" x2="420" y2="480" marker-end="url(#ar)"/>
+
+        <rect class="box" x="270" y="480" width="300" height="64" rx="8"/>
+        <text class="txt" x="420" y="506">保有銘柄の株価を取得</text>
+        <text class="sub" x="420" y="524">取れた行は損切りを更新</text>
+
+        <line class="ln" x1="420" y1="544" x2="420" y2="576" marker-end="url(#ar)"/>
+
+        <polygon class="dia" points="420,576 545,636 420,696 295,636"/>
+        <text class="txt" x="420" y="632">16時 close？</text>
+
+        <line class="ln" x1="545" y1="636" x2="700" y2="636" marker-end="url(#ar)"/>
+        <text class="lab" x="600" y="626">はい</text>
+        <rect class="box" x="700" y="592" width="130" height="88" rx="8"/>
+        <text class="txt" x="765" y="626">評価を記録</text>
+        <text class="sub" x="765" y="644">売買なし</text>
+        <line class="ln" x1="765" y1="680" x2="765" y2="1100" marker-end="url(#ar)"/>
+
+        <line class="ln" x1="420" y1="696" x2="420" y2="728" marker-end="url(#ar)"/>
+        <text class="lab" x="436" y="720">いいえ ＝ 9時/12時</text>
+
+        <rect class="box" x="270" y="728" width="300" height="64" rx="8"/>
+        <text class="txt" x="420" y="754">機械的に決済してから AI</text>
+        <text class="sub" x="420" y="772">損切り / 半分 / トレール / 時間切れ → 新規</text>
+
+        <line class="ln" x1="420" y1="792" x2="420" y2="824" marker-end="url(#ar)"/>
+
+        <polygon class="dia" points="420,824 530,874 420,924 310,874"/>
+        <text class="txt" x="420" y="870">dry-run？</text>
+
+        <line class="ln" x1="310" y1="874" x2="140" y2="874" marker-end="url(#ar)"/>
+        <text class="lab" x="176" y="864">はい</text>
+        <rect class="box-stop" x="20" y="846" width="120" height="56" rx="8"/>
+        <text class="txt" x="80" y="880">表示のみ</text>
+
+        <line class="ln" x1="420" y1="924" x2="420" y2="956" marker-end="url(#ar)"/>
+        <text class="lab" x="436" y="948">いいえ</text>
+
+        <rect class="box" x="300" y="956" width="240" height="48" rx="8"/>
+        <text class="txt" x="420" y="986">先に売る</text>
+
+        <line class="ln" x1="420" y1="1004" x2="420" y2="1028" marker-end="url(#ar)"/>
+
+        <rect class="box" x="270" y="1028" width="300" height="48" rx="8"/>
+        <text class="txt" x="420" y="1058">買い候補の株価を取得</text>
+
+        <line class="ln" x1="420" y1="1076" x2="420" y2="1100" marker-end="url(#ar)"/>
+
+        <rect class="box-start" x="300" y="1100" width="240" height="56" rx="28"/>
+        <text class="txt" x="420" y="1126">条件を満たす新規だけ買う</text>
+        <text class="sub" x="420" y="1144">2R・20万円・1%リスク・買い増し禁止</text>
+    </svg>
+</section>
+
+<section class="chart">
+    <h2>2. 出口はコード。買いは Gemini（中の分岐）</h2>
+    <svg viewBox="0 0 840 980" role="img" aria-label="機械的決済と買いのフロー">
+        <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#6b7694"/>
+            </marker>
+        </defs>
+
+        <rect class="box" x="270" y="16" width="300" height="56" rx="8"/>
+        <text class="txt" x="420" y="42">保有を1銘柄ずつ見る</text>
+        <text class="sub" x="420" y="60">DayTradeEngine。AI は呼ばない</text>
+
+        <line class="ln" x1="420" y1="72" x2="420" y2="104" marker-end="url(#ar2)"/>
+
+        <polygon class="dia" points="420,104 560,164 420,224 280,164"/>
+        <text class="txt" x="420" y="156">株価 ≤ 損切り？</text>
+
+        <line class="ln" x1="560" y1="164" x2="720" y2="164" marker-end="url(#ar2)"/>
+        <text class="lab" x="610" y="154">はい</text>
+        <rect class="box-stop" x="700" y="136" width="120" height="56" rx="8"/>
+        <text class="txt" x="760" y="170">全株売却</text>
+
+        <line class="ln" x1="420" y1="224" x2="420" y2="256" marker-end="url(#ar2)"/>
+        <text class="lab" x="436" y="248">いいえ</text>
+
+        <polygon class="dia" points="420,256 575,316 420,376 265,316"/>
+        <text class="txt" x="420" y="308">+8% 武装済みで</text>
+        <text class="txt" x="420" y="326">高値から −3%？</text>
+
+        <line class="ln" x1="575" y1="316" x2="720" y2="316" marker-end="url(#ar2)"/>
+        <text class="lab" x="620" y="306">はい</text>
+        <rect class="box-stop" x="700" y="288" width="120" height="56" rx="8"/>
+        <text class="txt" x="760" y="322">残り売却</text>
+
+        <line class="ln" x1="420" y1="376" x2="420" y2="408" marker-end="url(#ar2)"/>
+        <text class="lab" x="436" y="400">いいえ</text>
+
+        <polygon class="dia" points="420,408 560,468 420,528 280,468"/>
+        <text class="txt" x="420" y="460">+5% かつ</text>
+        <text class="txt" x="420" y="478">まだ半分？</text>
+
+        <line class="ln" x1="560" y1="468" x2="720" y2="468" marker-end="url(#ar2)"/>
+        <text class="lab" x="610" y="458">はい</text>
+        <rect class="box" x="700" y="440" width="120" height="56" rx="8"/>
+        <text class="txt" x="760" y="474">50% 利確</text>
+
+        <line class="ln" x1="420" y1="528" x2="420" y2="560" marker-end="url(#ar2)"/>
+        <text class="lab" x="436" y="552">いいえ</text>
+
+        <polygon class="dia" points="420,560 590,620 420,680 250,620"/>
+        <text class="txt" x="420" y="612">5営業日経過</text>
+        <text class="txt" x="420" y="630">かつ +2% 未満？</text>
+
+        <line class="ln" x1="590" y1="620" x2="720" y2="620" marker-end="url(#ar2)"/>
+        <text class="lab" x="630" y="610">はい</text>
+        <rect class="box-stop" x="700" y="592" width="120" height="56" rx="8"/>
+        <text class="txt" x="760" y="626">時間切れ</text>
+
+        <line class="ln" x1="420" y1="680" x2="420" y2="712" marker-end="url(#ar2)"/>
+        <text class="lab" x="436" y="704">いいえ</text>
+
+        <rect class="box-ai" x="250" y="712" width="340" height="72" rx="8"/>
+        <text class="txt" x="420" y="742">Gemini は新規だけ検索</text>
+        <text class="sub" x="420" y="760">根拠切れなら time_stop のみ可</text>
+
+        <line class="ln" x1="420" y1="784" x2="420" y2="816" marker-end="url(#ar2)"/>
+
+        <polygon class="dia" points="420,816 590,876 420,936 250,876"/>
+        <text class="txt" x="420" y="868">上昇・出来高・材料・市況</text>
+        <text class="txt" x="420" y="886">急騰なし・2R・近い損切り？</text>
+
+        <line class="ln" x1="590" y1="876" x2="720" y2="876" marker-end="url(#ar2)"/>
+        <text class="lab" x="630" y="866">はい</text>
+        <rect class="box" x="700" y="848" width="120" height="56" rx="8"/>
+        <text class="txt" x="760" y="882">新規買い</text>
+
+        <line class="ln" x1="420" y1="936" x2="420" y2="968" marker-end="url(#ar2)"/>
+        <text class="lab" x="436" y="960">いいえ</text>
+        <rect class="box-start" x="300" y="948" width="240" height="28" rx="14"/>
+        <text class="txt" x="420" y="968">買わない</text>
+    </svg>
+    <p class="lead" style="padding:0 8px">「反発するかも」は分岐ではない。損切り価格に届いたら売る。+2% 未満は何もしない。下がっていないから持つ、も禁止。</p>
+</section>
+
+<section class="chart">
+    <h2>3. アプリが通す関門（AIのあとに必ず通る）</h2>
+    <svg viewBox="0 0 840 620" role="img" aria-label="売却と購入の関門">
+        <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 Z" fill="#6b7694"/>
+            </marker>
+        </defs>
+
+        <text class="txt" x="210" y="28">売却</text>
+        <text class="txt" x="630" y="28">購入</text>
+
+        <rect class="box" x="80" y="48" width="260" height="48" rx="8"/>
+        <text class="txt" x="210" y="78">その銘柄を持っている？</text>
+        <line class="ln" x1="210" y1="96" x2="210" y2="124" marker-end="url(#ar3)"/>
+        <rect class="box" x="80" y="124" width="260" height="48" rx="8"/>
+        <text class="txt" x="210" y="154">現在株価がある？</text>
+        <line class="ln" x1="210" y1="172" x2="210" y2="200" marker-end="url(#ar3)"/>
+        <rect class="box" x="80" y="200" width="260" height="48" rx="8"/>
+        <text class="txt" x="210" y="230">単元株か、全株か？</text>
+        <line class="ln" x1="210" y1="248" x2="210" y2="280" marker-end="url(#ar3)"/>
+        <rect class="box-start" x="80" y="280" width="260" height="72" rx="8"/>
+        <text class="txt" x="210" y="310">約定して現金を増やす</text>
+        <text class="sub" x="210" y="328">残0なら保有削除</text>
+        <line class="ln" x1="80" y1="154" x2="20" y2="154"/>
+        <line class="ln" x1="20" y1="154" x2="20" y2="400" marker-end="url(#ar3)"/>
+        <rect class="box-stop" x="80" y="400" width="260" height="48" rx="8"/>
+        <text class="txt" x="210" y="430">どれかいいえ → 見送</text>
+
+        <rect class="box" x="500" y="48" width="280" height="48" rx="8"/>
+        <text class="txt" x="640" y="78">東証の内国株式にある？</text>
+        <line class="ln" x1="640" y1="96" x2="640" y2="124" marker-end="url(#ar3)"/>
+        <rect class="box" x="500" y="124" width="280" height="48" rx="8"/>
+        <text class="txt" x="640" y="154">株価が取れた？</text>
+        <line class="ln" x1="640" y1="172" x2="640" y2="200" marker-end="url(#ar3)"/>
+        <rect class="box" x="500" y="200" width="280" height="48" rx="8"/>
+        <text class="txt" x="640" y="230">RR・損切り・上限を通る？</text>
+        <line class="ln" x1="640" y1="248" x2="640" y2="280" marker-end="url(#ar3)"/>
+        <rect class="box-start" x="500" y="280" width="280" height="72" rx="8"/>
+        <text class="txt" x="640" y="310">リスクから株数を切って約定</text>
+        <text class="sub" x="640" y="328">買い増ししない</text>
+        <line class="ln" x1="780" y1="154" x2="820" y2="154"/>
+        <line class="ln" x1="820" y1="154" x2="820" y2="400" marker-end="url(#ar3)"/>
+        <rect class="box-stop" x="500" y="400" width="280" height="48" rx="8"/>
+        <text class="txt" x="640" y="430">どれかいいえ → 見送</text>
+
+        <rect class="box-ai" x="80" y="500" width="700" height="88" rx="8"/>
+        <text class="txt" x="430" y="538">損切りと数量は関門の前にコードが決める</text>
+        <text class="sub" x="430" y="560">AI は「反発するかも」で出口を書き換えられない</text>
+    </svg>
+</section>
+</body>
+</html>

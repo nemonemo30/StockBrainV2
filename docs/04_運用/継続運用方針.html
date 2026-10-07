@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stock Brain — 期待値と生存</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #07090f;
+            --ink: #e8edf8;
+            --mute: #8b95b0;
+            --line: #2a3350;
+            --hi: #9db0ff;
+            --now: #5eead4;
+            --later: #7dd3fc;
+            --warn: #fbbf24;
+            --bad: #fb7185;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+        body { font-family: "Noto Sans JP", sans-serif; }
+
+        .deck {
+            height: 100%;
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr);
+        }
+
+        nav {
+            border-right: 1px solid var(--line);
+            padding: 28px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        nav .brand {
+            font-family: Syne, sans-serif;
+            letter-spacing: .16em;
+            font-size: 12px;
+            color: var(--hi);
+            margin-bottom: 8px;
+        }
+
+        nav .doclink {
+            display: block;
+            margin-bottom: 22px;
+            font-size: 11px;
+            color: var(--mute);
+            text-decoration: none;
+        }
+
+        nav .doclink:hover { color: var(--ink); }
+
+        nav button {
+            appearance: none;
+            border: 0;
+            background: transparent;
+            color: var(--mute);
+            text-align: left;
+            font: inherit;
+            font-size: 12px;
+            padding: 8px 10px;
+            cursor: pointer;
+            border-left: 2px solid transparent;
+        }
+
+        nav button[aria-current="true"] {
+            color: var(--ink);
+            border-left-color: var(--hi);
+            background: #12162a;
+        }
+
+        main { position: relative; overflow: hidden; }
+
+        .slide {
+            display: none;
+            height: 100%;
+            padding: 48px 56px 72px;
+            overflow: auto;
+        }
+
+        .slide.on { display: block; }
+
+        h1 {
+            font-family: Syne, sans-serif;
+            font-size: clamp(32px, 4vw, 54px);
+            letter-spacing: .04em;
+            margin: 0 0 12px;
+            line-height: 1.15;
+        }
+
+        h2 {
+            font-family: Syne, sans-serif;
+            font-size: 28px;
+            margin: 0 0 20px;
+        }
+
+        .lead { color: var(--mute); font-size: 16px; max-width: 40em; line-height: 1.8; }
+        .kicker { font-family: "IBM Plex Mono", monospace; color: var(--hi); font-size: 12px; letter-spacing: .18em; margin-bottom: 14px; }
+
+        .compare {
+            display: grid;
+            grid-template-columns: 1fr 72px 1fr;
+            gap: 16px;
+            margin-top: 36px;
+            align-items: stretch;
+        }
+
+        .pane {
+            border: 1px solid var(--line);
+            padding: 22px;
+            min-height: 220px;
+        }
+
+        .pane.old { border-color: #5b3340; }
+        .pane.next { border-color: #245e57; }
+        .pane b { display: block; font-size: 12px; letter-spacing: .12em; margin-bottom: 12px; color: var(--mute); }
+        .pane p { margin: 0; line-height: 1.7; }
+
+        .arrow {
+            display: grid;
+            place-items: center;
+            color: var(--hi);
+            font-family: Syne, sans-serif;
+            font-size: 28px;
+        }
+
+        .flow {
+            margin-top: 28px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .node, .cause {
+            border: 1px solid var(--line);
+            padding: 12px 14px;
+            font-size: 14px;
+        }
+
+        .chain {
+            display: grid;
+            grid-template-columns: 1fr 28px 1fr 28px 1fr;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .chain i { text-align: center; color: var(--hi); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border-bottom: 1px solid var(--line); padding: 12px 10px; text-align: left; vertical-align: middle; }
+        th { color: var(--mute); font-weight: 500; font-size: 11px; letter-spacing: .1em; }
+
+        .bars { display: flex; gap: 4px; }
+        .bars span {
+            width: 12px;
+            height: 12px;
+            background: #1c2238;
+        }
+        .bars.sev span.on { background: var(--bad); }
+        .bars.sol span.on { background: var(--hi); }
+
+        .tag {
+            display: inline-block;
+            font-family: "IBM Plex Mono", monospace;
+            font-size: 10px;
+            letter-spacing: .08em;
+            padding: 3px 7px;
+            border: 1px solid var(--line);
+        }
+
+        .tag.now { color: #042f2e; background: var(--now); border-color: var(--now); }
+        .tag.wait { color: var(--later); }
+
+        .cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            padding: 16px 16px 14px;
+        }
+
+        .card h3 { margin: 8px 0 8px; font-size: 16px; }
+        .card p { margin: 0; color: var(--mute); font-size: 13px; line-height: 1.7; }
+
+        .roadmap {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .roadmap section {
+            border: 1px solid var(--line);
+            padding: 18px;
+            min-height: 220px;
+        }
+
+        .roadmap h3 { margin: 0 0 12px; font-size: 15px; }
+        .roadmap li { margin: 0 0 8px; color: var(--mute); font-size: 13px; line-height: 1.6; }
+        .roadmap ol { margin: 0; padding-left: 18px; }
+
+        .foot {
+            position: absolute;
+            left: 56px;
+            right: 56px;
+            bottom: 22px;
+            display: flex;
+            justify-content: space-between;
+            color: var(--mute);
+            font-family: "IBM Plex Mono", monospace;
+            font-size: 11px;
+        }
+
+        .hint { margin-top: 28px; color: var(--mute); font-size: 13px; }
+
+        @media (max-width: 860px) {
+            .deck { grid-template-columns: 1fr; }
+            nav { flex-direction: row; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
+            .compare, .chain, .cards, .roadmap { grid-template-columns: 1fr; }
+            .chain { grid-template-columns: 1fr; }
+            .chain i { display: none; }
+            .slide { padding: 24px 20px 64px; }
+            .foot { left: 20px; right: 20px; }
+        }
+    </style>
+</head>
+<body>
+<div class="deck">
+    <nav>
+        <div class="brand">STOCK BRAIN</div>
+        <a class="doclink" href="../02_設計/現行処理ロジック.html">処理ロジック →</a>
+        <a class="doclink" href="../02_設計/処理フローチャート.html">フローチャート →</a>
+        <button type="button" data-go="0">01 方針</button>
+        <button type="button" data-go="1">02 いまの問題</button>
+        <button type="button" data-go="2">03 因果</button>
+        <button type="button" data-go="3">04 Issue一覧</button>
+        <button type="button" data-go="4">05 処置の切り分け</button>
+        <button type="button" data-go="5">06 実装順</button>
+        <button type="button" data-go="6">07 今回入れたもの</button>
+    </nav>
+
+    <main>
+        <section class="slide on" id="s0">
+            <div class="kicker">POLICY / 2026-09-29</div>
+            <h1>勝率ではなく、<br>期待値と生存。</h1>
+            <p class="lead">ほぼ確実に勝てる株ロジックはない。狙うのは勝率 70〜80% ではなく、期待値がプラスで、連敗しても死なない仕組み。買うのは「上がりそう」ではなく「外れても小さく負けられる銘柄」だけ。</p>
+        </section>
+
+        <section class="slide" id="s1">
+            <div class="kicker">PROBLEM</div>
+            <h2>何が問題か</h2>
+            <div class="compare">
+                <div class="pane old">
+                    <b>やめる</b>
+                    <p>プラスなら利確。AI に「反発するかも」で損切りを延期させる。下がっていないから持つ。1銘柄に資金が寄り、連敗で死ぬ。</p>
+                </div>
+                <div class="arrow">→</div>
+                <div class="pane next">
+                    <b>やる</b>
+                    <p>損切りは機械的。利確は段階的（+2% は何もしない、+2〜3% で建値撤退、+5% で半分、+8% からトレール）。銘柄は絞り、1回の損失は資産の 0.5〜1%。</p>
+                </div>
+            </div>
+            <p class="hint">資金が死ぬのは、負けを大きくしたときと、動かないポジションを置き続けたとき。</p>
+        </section>
+
+        <section class="slide" id="s2">
+            <div class="kicker">CAUSE</div>
+            <h2>問題を起こしている構造</h2>
+            <div class="flow">
+                <div class="chain">
+                    <div class="cause">買う条件が緩い</div>
+                    <i>→</i>
+                    <div class="cause">リスクリワードが悪い</div>
+                    <i>→</i>
+                    <div class="cause">勝てても期待値がマイナス</div>
+                </div>
+                <div class="chain">
+                    <div class="cause">損切りを AI に任せる</div>
+                    <i>→</i>
+                    <div class="cause">反発するかもで持ち越し</div>
+                    <i>→</i>
+                    <div class="cause">小さな負けが大きな負けになる</div>
+                </div>
+                <div class="chain">
+                    <div class="cause">下がっていないから持つ</div>
+                    <i>→</i>
+                    <div class="cause">資金が寝て、機会損失</div>
+                    <i>→</i>
+                    <div class="cause">連敗に耐えられない</div>
+                </div>
+            </div>
+            <p class="hint">コードが決めるのは出口と数量。AI が決めるのは「買うに足るセットアップか」だけ。</p>
+        </section>
+
+        <section class="slide" id="s3">
+            <div class="kicker">ISSUES</div>
+            <h2>Issue度と、解の質</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Issue</th>
+                        <th>Issue度</th>
+                        <th>解の質</th>
+                        <th>処置</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>R-01</td>
+                        <td>リスクリワード 2倍未満でも買う</td>
+                        <td><div class="bars sev" data-n="5"></div></td>
+                        <td><div class="bars sol" data-n="5"></div></td>
+                        <td><span class="tag now">今回</span></td>
+                    </tr>
+                    <tr>
+                        <td>R-02</td>
+                        <td>損切りを AI が延期する</td>
+                        <td><div class="bars sev" data-n="5"></div></td>
+                        <td><div class="bars sol" data-n="5"></div></td>
+                        <td><span class="tag now">今回</span></td>
+                    </tr>
+                    <tr>
+                        <td>R-03</td>
+                        <td>プラスなら利確してしまう</td>
+                        <td><div class="bars sev" data-n="4"></div></td>
+                        <td><div class="bars sol" data-n="5"></div></td>
+                        <td><span class="tag now">今回</span></td>
+                    </tr>
+                    <tr>
+                        <td>R-04</td>
+                        <td>下がっていないから持ち続ける</td>
+                        <td><div class="bars sev" data-n="4"></div></td>
+                        <td><div class="bars sol" data-n="5"></div></td>
+                        <td><span class="tag now">今回</span></td>
+                    </tr>
+                    <tr>
+                        <td>R-05</td>
+                        <td>1銘柄・1トレードが大きすぎる</td>
+                        <td><div class="bars sev" data-n="5"></div></td>
+                        <td><div class="bars sol" data-n="5"></div></td>
+                        <td><span class="tag now">今回</span></td>
+                    </tr>
+                    <tr>
+                        <td>R-06</td>
+                        <td>市況と材料を見ずに買う</td>
+                        <td><div class="bars sev" data-n="4"></div></td>
+                        <td><div class="bars sol" data-n="4"></div></td>
+                        <td><span class="tag now">今回</span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <p class="hint">赤い目盛りが深刻さ。紫がコードで止められる度合い。損切りと数量はコード側。</p>
+        </section>
+
+        <section class="slide" id="s4">
+            <div class="kicker">SCOPE</div>
+            <h2>どの Issue を、いま処置するか</h2>
+            <div class="cards">
+                <div class="card">
+                    <span class="tag now">今回 · コード</span>
+                    <h3>R-01 / R-02 / R-03 / R-04 / R-05</h3>
+                    <p>DayTradeEngine が損切り・半分利確・トレール・時間切れ・数量を決める。買い増し禁止。1銘柄 20万円、最大 5銘柄、1回の損失は資産の 1% 以内。第2利確が損失幅の 2倍未満なら買わない。</p>
+                </div>
+                <div class="card">
+                    <span class="tag now">今回 · 検索</span>
+                    <h3>R-06 買う銘柄を絞る</h3>
+                    <p>AI は Google 検索で日経・TOPIX、出来高、急騰、決算悪化を確認する。条件を一つでも欠くなら空配列。損切り価格に「反発するかも」は禁止。</p>
+                </div>
+            </div>
+            <p class="hint">例: 1000円で買うなら損切り 970、第1利確 1050、第2利確 1080。リスク −3%、利益 +5〜8%。</p>
+        </section>
+
+        <section class="slide" id="s5">
+            <div class="kicker">ORDER</div>
+            <h2>実装順</h2>
+            <div class="roadmap">
+                <section>
+                    <h3>1 いま</h3>
+                    <ol>
+                        <li>買う条件を厳しくする（検索必須）</li>
+                        <li>損切り・利確をコードにする</li>
+                        <li>数量を 1% リスクと 20万円で切る</li>
+                        <li>5営業日動かなければ売る</li>
+                    </ol>
+                </section>
+                <section>
+                    <h3>2 いま入れたもの</h3>
+                    <ol>
+                        <li>holdings に stop / TP / thesis / opened_at</li>
+                        <li>+2% で建値、+5% で半分、+8% でトレール</li>
+                        <li>AI の売りは根拠切れの時間切れだけ</li>
+                    </ol>
+                </section>
+                <section>
+                    <h3>3 変えないもの</h3>
+                    <ol>
+                        <li>シミュレーション。実発注なし</li>
+                        <li>配当・優待は口座に入れない</li>
+                        <li>土日と東証休場は動かない</li>
+                    </ol>
+                </section>
+            </div>
+        </section>
+
+        <section class="slide" id="s6">
+            <div class="kicker">SHIPPED</div>
+            <h2>今回コードに入れた処置</h2>
+            <div class="cards">
+                <div class="card">
+                    <span class="tag now">DayTradeEngine.php</span>
+                    <h3>出口は機械的</h3>
+                    <p>970円に届いたら問答無用で売る。+2% 未満は何もしない。+2〜3% で損切りを買値へ。+5% で 50% 利確。+8% から高値 −3% のトレール。5営業日で +2% 未満なら時間切れ。</p>
+                </div>
+                <div class="card">
+                    <span class="tag now">TradeAdvisor.php</span>
+                    <h3>買いは検索して絞る</h3>
+                    <p>上昇トレンド・出来高・材料・市況・急騰しすぎない・損切りが近い・利確が 2R。買い増し禁止。AI に損切りも通常の利確もさせない。</p>
+                </div>
+            </div>
+            <p class="hint">100万円なら 1銘柄 10〜20万円、最大 5銘柄。1トレードの最大損失は 5,000〜10,000円。</p>
+        </section>
+
+        <div class="foot">
+            <span>← → で移動</span>
+            <span id="pos">1 / 7</span>
+        </div>
+    </main>
+</div>
+<script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const buttons = [...document.querySelectorAll('nav button')];
+    const pos = document.getElementById('pos');
+    let i = 0;
+
+    function go(n) {
+        i = Math.max(0, Math.min(slides.length - 1, n));
+        slides.forEach((s, idx) => s.classList.toggle('on', idx === i));
+        buttons.forEach((b, idx) => b.setAttribute('aria-current', idx === i ? 'true' : 'false'));
+        pos.textContent = (i + 1) + ' / ' + slides.length;
+    }
+
+    buttons.forEach((b) => b.addEventListener('click', () => go(Number(b.dataset.go))));
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === 'PageDown') go(i + 1);
+        if (e.key === 'ArrowLeft' || e.key === 'PageUp') go(i - 1);
+    });
+
+    document.querySelectorAll('.bars').forEach((el) => {
+        const n = Number(el.dataset.n);
+        el.innerHTML = '';
+        for (let k = 1; k <= 5; k++) {
+            const s = document.createElement('span');
+            if (k <= n) s.className = 'on';
+            el.appendChild(s);
+        }
+    });
+</script>
+</body>
+</html>
