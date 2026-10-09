@@ -241,7 +241,7 @@
                 <div class="step branch"><span class="id">02</span><span>土日、または JPX 休業日か</span><span class="who">TradingCalendar</span></div>
                 <div class="step skip"><span class="id">SKIP</span><span>はい → 何もしない。job_runs も作らない</span><span class="who">return</span></div>
                 <div class="step"><span class="id">03</span><span>いいえ → 口座を取り、job_runs を running で作る</span><span class="who">Portfolio / JobRun</span></div>
-                <div class="step"><span class="id">04</span><span>保有銘柄の株価を Gemini + 検索で取る。取れた行だけ holdings を更新</span><span class="who">StockPriceFetcher</span></div>
+                <div class="step"><span class="id">04</span><span>保有の株価は Yahoo チャートが先。失敗した銘柄だけ Gemini 検索。取れた行だけ holdings を更新</span><span class="who">StockPriceFetcher</span></div>
                 <div class="step branch"><span class="id">05</span><span>quotes は株価だけ。close は記録。morning / noon は売買</span><span class="who">分岐</span></div>
             </div>
             <p class="hint">臨時休場（台風など）は見ていない。2028年以降の祝日も未登録。</p>
@@ -252,11 +252,11 @@
             <h2>判断セッションの中身</h2>
             <div class="flow">
                 <div class="step"><span class="id">T1</span><span>株価更新後、損切りを買値へ引き上げ／トレールを武装</span><span class="who">DayTradeEngine::refresh</span></div>
-                <div class="step"><span class="id">T2</span><span>ストップ到達・トレール・+5%半分・5営業日時間切れを先に売る</span><span class="who">DayTradeEngine::exitOrder</span></div>
+                <div class="step"><span class="id">T2</span><span>ストップ到達・トレール・+5%は200株以上なら半分（100株単位）／100株玉は全株・5営業日時間切れを先に売る</span><span class="who">DayTradeEngine::exitOrder</span></div>
                 <div class="step"><span class="id">T3</span><span>AI は検索して新規と、根拠切れの time_stop だけ。損切り・利確は返させない</span><span class="who">TradeAdvisor</span></div>
                 <div class="step branch"><span class="id">T4</span><span>--dry-run ならここで止まる。約定しない</span><span class="who">option</span></div>
                 <div class="step"><span class="id">T5</span><span>買い候補の株価を、もう一度取りに行く</span><span class="who">StockPriceFetcher</span></div>
-                <div class="step end"><span class="id">T6</span><span>RR・損切り距離・1銘柄上限・1%リスクで株数を切って買う。買い増しなし</span><span class="who">TradeExecutor::buy</span></div>
+                <div class="step end"><span class="id">T6</span><span>RR・損切り距離・現金・1%リスクで株数を切って買う。買い増しなし</span><span class="who">TradeExecutor::buy</span></div>
             </div>
             <p class="hint">売りと買いは同じセッション内で直列。売って増えた現金は、その回の買いに使える。</p>
         </section>
@@ -281,7 +281,7 @@
                 <li>損切り到達を「反発するかも」で持ち越さない。コードが売る</li>
                 <li>プラスだから利確、もしない。+2% 未満は何もしない</li>
                 <li>5営業日経過して上がっていない／出来高減／根拠切れなら売却。下がっていないから持つ、は禁止</li>
-                <li>既存の買い増しはしない。最大 2 候補、保有は最大 5 銘柄</li>
+                <li>既存の買い増しはしない。最大 2 候補、保有は最大 10 銘柄</li>
             </ul>
             <p class="hint">ここはプロンプト。ただし損切りと +5% / トレール / 時間切れは、AI の前にコードが実行する。</p>
         </section>
@@ -292,7 +292,7 @@
             <div class="gate">
                 <div class="ng">保有していない → 見送</div>
                 <div class="ng">現在株価が無い → 見送</div>
-                <div class="ng">単元未満（全株売却と scale_out 以外）→ 見送</div>
+                <div class="ng">単元未満（既にある端株の全決済以外）→ 見送</div>
                 <div class="ok">通った → 約定。現金を増やす。残0なら保有削除。scale_out なら scaled_out を立てる。平均単価は据え置き</div>
             </div>
             <p class="hint">機械的な損切りは、実現損益がプラスでも stop_loss のままにしないよう、trailing_stop / time_stop / scale_out は補正しない。</p>
@@ -306,11 +306,11 @@
                 <div class="ng">内国株式以外 → 見送</div>
                 <div class="ng">株価が取れない → 見送</div>
                 <div class="ng">すでに保有 → 見送（買い増ししない）</div>
-                <div class="ng">保有 5 銘柄以上 → 見送</div>
+                <div class="ng">保有 10 銘柄以上 → 見送</div>
                 <div class="ng">損切りが買値以上、または距離が 4% 超 → 見送</div>
                 <div class="ng">第2利確が損失幅の 2倍未満 → 見送</div>
-                <div class="ng">1単元が 20万円超、または現金・1%リスクで 0株 → 見送</div>
-                <div class="ok">通った → 株数は min(注文, 1%リスク, 20万円, 現金)。stop / TP / thesis / opened_at を保存</div>
+                <div class="ng">現金または1%リスクで 1単元に届かない → 見送</div>
+                <div class="ok">通った → 株数は min(注文, 1%リスク, 現金)。stop / TP / thesis / opened_at を保存</div>
             </div>
             <p class="hint">候補の上限は STOCKBRAIN_MAX_BUY_CANDIDATES（既定2）。単元は 100株。リスクは STOCKBRAIN_RISK_PER_TRADE_PCT（既定1%）。</p>
         </section>
