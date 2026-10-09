@@ -241,7 +241,7 @@
                 <div class="step branch"><span class="id">02</span><span>土日、または JPX 休業日か</span><span class="who">TradingCalendar</span></div>
                 <div class="step skip"><span class="id">SKIP</span><span>はい → 何もしない。job_runs も作らない</span><span class="who">return</span></div>
                 <div class="step"><span class="id">03</span><span>いいえ → 口座を取り、job_runs を running で作る</span><span class="who">Portfolio / JobRun</span></div>
-                <div class="step"><span class="id">04</span><span>保有の株価は Yahoo チャートが先。失敗した銘柄だけ Gemini 検索。取れた行だけ holdings を更新</span><span class="who">StockPriceFetcher</span></div>
+                <div class="step"><span class="id">04</span><span>保有銘柄の株価を Gemini + 検索で取る。取れた行だけ holdings を更新</span><span class="who">StockPriceFetcher</span></div>
                 <div class="step branch"><span class="id">05</span><span>quotes は株価だけ。close は記録。morning / noon は売買</span><span class="who">分岐</span></div>
             </div>
             <p class="hint">臨時休場（台風など）は見ていない。2028年以降の祝日も未登録。</p>
